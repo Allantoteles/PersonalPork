@@ -1,0 +1,98 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["driverAdapters"]
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  nombre      String   @unique
+  descripcion String?
+  createdAt   DateTime @default(now())
+  usuarios    Usuario[]
+}
+
+model Usuario {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  nombre       String
+  rolId        String?
+  rol          Role?    @relation(fields: [rolId], references: [id])
+  entrenadorId String?
+  entrenador   Usuario? @relation("EntrenadorAtleta", fields: [entrenadorId], references: [id])
+  atletas      Usuario[] @relation("EntrenadorAtleta")
+  createdAt    DateTime @default(now())
+  rutinasAlumno Rutina[] @relation("AlumnoRutinas")
+  rutinasEntrenador Rutina[] @relation("EntrenadorRutinas")
+}
+
+model Ejercicio {
+  id              String   @id @default(uuid())
+  nombre           String
+  nombreOriginal   String?
+  descripcion      String?
+  grupoMuscular    String
+  gruposMusculares String
+  equipo           String?
+  nivel            String   @default("intermediate")
+  instrucciones    String
+  categoria       String?
+  creadoPor        String?
+  createdAt        DateTime @default(now())
+  rutinaEjercicios RutinaEjercicio[]
+}
+
+model Rutina {
+  id              String   @id @default(uuid())
+  nombre           String
+  descripcion      String?
+  diaSemana        String
+  alumnoId        String
+  alumno           Usuario @relation("AlumnoRutinas", fields: [alumnoId], references: [id])
+  entrenadorId     String
+  entrenador       Usuario @relation("EntrenadorRutinas", fields: [entrenadorId], references: [id])
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  rutinaEjercicios RutinaEjercicio[]
+}
+
+model RutinaEjercicio {
+  id           String   @id @default(uuid())
+  rutinaId     String
+  rutina       Rutina  @relation(fields: [rutinaId], references: [id], onDelete: Cascade)
+  ejercicioId  String
+  ejercicio    Ejercicio @relation(fields: [ejercicioId], references: [id])
+  series       Int      @default(3)
+  repeticiones Int      @default(10)
+  peso         Float    @default(0)
+  orden        Int      @default(0)
+}
+
+model RegistroEntrenamiento {
+  id              String   @id @default(uuid())
+  rutinaId        String?
+  alumnoId        String
+  fecha           DateTime @default(now())
+  estado          String   @default("completado")
+  horaInicio      String?
+  horaFin         String?
+  duracionMinutos Int?
+  observaciones   String?
+  createdAt       DateTime @default(now())
+  detalles        DetalleEntrenamiento[]
+}
+
+model DetalleEntrenamiento {
+  id                       String   @id @default(uuid())
+  registroEntrenamientoId  String
+  registro                 RegistroEntrenamiento @relation(fields: [registroEntrenamientoId], references: [id], onDelete: Cascade)
+  rutinaEjercicioId        String
+  numeroSerie              Int
+  repeticiones             Int
+  peso                     Float   @default(0)
+  completado              Boolean @default(false)
+}
