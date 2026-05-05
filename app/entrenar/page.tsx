@@ -2,11 +2,11 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Header from '../../components/Header';
-import BottomNav from '../../components/BottomNav';
+import Header from '../components/Header';
+import BottomNav from '../components/BottomNav';
 import { ChevronRight, Dumbbell } from 'lucide-react';
-import { useAuth } from '../../components/AuthProvider';
-import { query } from '../../../lib/turso';
+import { useAuth } from '../components/AuthProvider';
+import { query } from '../../lib/turso';
 
 const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
@@ -75,7 +75,7 @@ export default function AthleteTrainPage() {
                 {rutinasDia.map((routine) => (
                   <Link
                     key={routine.id}
-                    href={`/atleta/entrenar/${routine.id}`}
+                    href={`/entrenar/${routine.id}`}
                     className="bg-[#242b2d] rounded-lg overflow-hidden border-l-4 border-[#ff6b00] flex active:scale-[0.98] transition-transform duration-150"
                   >
                     <div className="w-24 h-24 shrink-0 bg-[#2f3638] relative overflow-hidden flex items-center justify-center">

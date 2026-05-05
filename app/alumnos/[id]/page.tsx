@@ -3,10 +3,10 @@
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import Header from '../../../components/Header';
-import BottomNav from '../../../components/BottomNav';
+import Header from '../../components/Header';
+import BottomNav from '../../components/BottomNav';
 import { ChevronRight, Plus, Calendar, Dumbbell, Pencil } from 'lucide-react';
-import { query } from '../../../../lib/turso';
+import { query } from '../../../lib/turso';
 
 const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
@@ -64,7 +64,7 @@ export default function AlumnoDetailPage() {
 
       <main className="pt-20 pb-32 px-5 max-w-md mx-auto">
         <Link
-          href="/entrenador/alumnos"
+          href="/alumnos"
           className="inline-flex items-center gap-2 text-[#ff6b00] mb-6 font-['Lexend']"
         >
           <ChevronRight size={20} className="rotate-180" />
@@ -93,7 +93,7 @@ export default function AlumnoDetailPage() {
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="text-sm font-bold text-[#ffb693] uppercase tracking-wider font-['Lexend']">{dia}</h3>
                     <Link
-                      href={`/entrenador/crear-rutina?alumno=${alumnoId}&dia=${encodeURIComponent(dia)}`}
+                      href={`/rutinas?alumno=${alumnoId}&dia=${encodeURIComponent(dia)}`}
                       className="bg-[#ff6b00] text-[#351000] w-7 h-7 rounded-full flex items-center justify-center active:scale-95 transition-transform"
                     >
                       <Plus size={16} />
@@ -117,7 +117,7 @@ export default function AlumnoDetailPage() {
                               )}
                             </div>
                             <Link
-                              href={`/entrenador/crear-rutina?alumno=${alumnoId}&version=${rutina.id}`}
+                              href={`/rutinas?alumno=${alumnoId}&version=${rutina.id}`}
                               className="p-2 bg-[#242b2d] rounded-lg active:scale-95 transition-transform"
                             >
                               <Pencil size={16} className="text-[#ff6b00]" />

@@ -2,8 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Header from '../../../components/Header';
-import BottomNav from '../../../components/BottomNav';
+import Header from '../../components/Header';
+import BottomNav from '../../components/BottomNav';
 import { ChevronRight, Dumbbell, Check, X } from 'lucide-react';
 
 const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -104,7 +104,7 @@ export default function HistorialDetallePage() {
     <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
       <header className="fixed top-0 w-full z-50 bg-[#0e1416] border-b border-[#2f3638] flex justify-between items-center px-5 h-16">
         <div className="flex items-center gap-4">
-          <Link href="/atleta/historial" className="text-[#dde4e6] active:scale-95 transition-transform">
+          <Link href="/historial" className="text-[#dde4e6] active:scale-95 transition-transform">
             <ChevronRight className="rotate-180" size={24} />
           </Link>
           <h1 className="font-bold tracking-tighter text-[#ff6b00] text-xl font-['Lexend']">{registro.rutinaNombre}</h1>

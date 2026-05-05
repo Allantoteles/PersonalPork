@@ -17,7 +17,7 @@ export default function DashboardPage() {
   const activeDays = [0, 2, 3];
 
   const handleStartWorkout = () => {
-    router.push('/atleta/entrenar/1');
+    router.push('/entrenar/1');
   };
 
   return (

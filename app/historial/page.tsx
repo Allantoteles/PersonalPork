@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import Header from '../../components/Header';
-import BottomNav from '../../components/BottomNav';
+import Header from '../components/Header';
+import BottomNav from '../components/BottomNav';
 import { Dumbbell, Calendar, ChevronRight } from 'lucide-react';
 
 const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
@@ -136,7 +136,7 @@ export default function HistorialPage() {
             return (
               <Link
                 key={registro.id}
-                href={`/atleta/historial/${registro.id}`}
+                href={`/historial/${registro.id}`}
                 className="block bg-[#1a2123] rounded-xl overflow-hidden border-l-4 border-[#ff6b00] active:scale-[0.98] transition-transform duration-150"
               >
                 <div className="p-4">

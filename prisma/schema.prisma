@@ -31,13 +31,13 @@ model Usuario {
 model Ejercicio {
   id               String   @id @default(uuid())
   nombre           String
-  nombreOriginal   String?
   grupoMuscular    String
   gruposMusculares String
   equipo           String?
   nivel            String   @default("intermediate")
   instrucciones    String
-  categoria       String?
+  categoria        String?
+  imagen           String?
   creadoPor        String?
   createdAt        DateTime @default(now())
 }

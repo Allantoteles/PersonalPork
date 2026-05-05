@@ -3,24 +3,22 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from './AuthProvider';
-import { Dumbbell, History, TrendingUp, User, Users, Plus, ClipboardList } from 'lucide-react';
+import { Dumbbell, History, TrendingUp, Users, Plus } from 'lucide-react';
 
 export default function BottomNav() {
   const pathname = usePathname();
   const { role } = useAuth();
 
   const entrenadorLinks = [
-    { href: '/entrenador/alumnos', icon: Users, label: 'Alumnos' },
-    { href: '/entrenador/progreso', icon: TrendingUp, label: 'Progreso' },
-    { href: '/entrenador/crear-rutina', icon: Plus, label: 'Crear' },
-    { href: '/entrenador/perfil', icon: User, label: 'Perfil' },
+    { href: '/alumnos', icon: Users, label: 'Alumnos' },
+    { href: '/progreso', icon: TrendingUp, label: 'Progreso' },
+    { href: '/rutinas', icon: Plus, label: 'Crear' },
   ];
 
   const atletaLinks = [
-    { href: '/atleta/entrenar', icon: Dumbbell, label: 'Entrenar' },
-    { href: '/atleta/historial', icon: History, label: 'Historial' },
-    { href: '/atleta/progreso', icon: TrendingUp, label: 'Progreso' },
-    { href: '/atleta/perfil', icon: User, label: 'Perfil' },
+    { href: '/entrenar', icon: Dumbbell, label: 'Entrenar' },
+    { href: '/historial', icon: History, label: 'Historial' },
+    { href: '/progreso', icon: TrendingUp, label: 'Progreso' },
   ];
 
   const links = role === 'entrenador' ? entrenadorLinks : atletaLinks;

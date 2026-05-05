@@ -1,7 +1,7 @@
 'use client';
 
-import Header from '../../components/Header';
-import BottomNav from '../../components/BottomNav';
+import Header from '../components/Header';
+import BottomNav from '../components/BottomNav';
 import { TrendingUp, Calendar, Dumbbell, ChevronRight } from 'lucide-react';
 
 export default function ProgressPage() {

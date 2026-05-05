@@ -3,11 +3,11 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import Header from '../../components/Header';
-import BottomNav from '../../components/BottomNav';
+import Header from '../components/Header';
+import BottomNav from '../components/BottomNav';
 import { User, ChevronRight, Plus, Search, X, TrendingUp, Trash2, Calendar } from 'lucide-react';
-import { useAuth } from '../../components/AuthProvider';
-import { Alumno } from '../../../lib/types';
+import { useAuth } from '../components/AuthProvider';
+import { Alumno } from '../../lib/types';
 
 async function getAlumnos(entrenadorId: string): Promise<Alumno[]> {
   const res = await fetch(`/api/alumnos?trainerId=${entrenadorId}`);
@@ -255,7 +255,7 @@ export default function AlumnosPage() {
 
             <div className="flex flex-col gap-3">
               <Link
-                href={`/entrenador/alumnos/${selectedAlumno.id}`}
+                href={`/alumnos/${selectedAlumno.id}`}
                 className="flex items-center gap-3 bg-[#242b2d] px-4 py-4 rounded-xl hover:bg-[#2f3638] transition-colors"
               >
                 <Calendar size={22} className="text-[#ff6b00]" />
@@ -263,7 +263,7 @@ export default function AlumnosPage() {
               </Link>
 
               <Link
-                href={`/entrenador/progreso?alumno=${selectedAlumno.id}`}
+                href={`/progreso?alumno=${selectedAlumno.id}`}
                 className="flex items-center gap-3 bg-[#242b2d] px-4 py-4 rounded-xl hover:bg-[#2f3638] transition-colors"
               >
                 <TrendingUp size={22} className="text-[#ff6b00]" />
