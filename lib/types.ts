@@ -1,9 +1,21 @@
-import { query } from './turso';
-
-export type { Role, Usuario, Rutina, Ejercicio, RutinaEjercicio } from '@prisma/client';
-
-export type Alumno = Pick<Usuario, 'id' | 'nombre' | 'email'> & {
+export interface Alumno {
+  id: string;
+  nombre: string;
+  email: string;
   rutinas_count?: number;
-};
+}
 
-export type ExerciseFromDB = Pick<Ejercicio, 'id' | 'nombre' | 'grupoMuscular' | 'equipo'>;
+export interface ExerciseFromDB {
+  id: string;
+  name: string;
+  nameEs: string;
+  primaryMuscles: string[];
+  primaryMusclesEs: string[];
+  secondaryMuscles: string[];
+  secondaryMusclesEs: string[];
+  equipment: string | null;
+  level: string;
+  instructions: string[];
+  category: string;
+  images: string[];
+}

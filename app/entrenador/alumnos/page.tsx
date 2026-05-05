@@ -7,7 +7,7 @@ import Header from '../../components/Header';
 import BottomNav from '../../components/BottomNav';
 import { User, ChevronRight, Plus, Search, X, TrendingUp, Trash2, Calendar } from 'lucide-react';
 import { useAuth } from '../../components/AuthProvider';
-import { Alumno } from '../../../../lib/types';
+import { Alumno } from '../../../lib/types';
 
 async function getAlumnos(entrenadorId: string): Promise<Alumno[]> {
   const res = await fetch(`/api/alumnos?trainerId=${entrenadorId}`);
@@ -76,7 +76,6 @@ export default function AlumnosPage() {
       queryClient.invalidateQueries({ queryKey: ['alumnos'] });
       queryClient.invalidateQueries({ queryKey: ['atletas-disponibles'] });
       setSearchQuery('');
-      setSearchResults([]);
       setShowAddSection(false);
     },
   });

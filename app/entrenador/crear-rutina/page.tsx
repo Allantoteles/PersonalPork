@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '../../components/Header';
 import BottomNav from '../../components/BottomNav';
-import { Plus, Trash2, ChevronRight, User, Save, Search, Dumbbell, Loader2 } from 'lucide-react';
+import { Plus, Trash2, ChevronRight, User, Save, Search, Dumbbell, Loader2, Pencil } from 'lucide-react';
 import { useAuth } from '../../components/AuthProvider';
 import { searchExercises, ExerciseFromDB, getExerciseImageUrl } from '../../../lib/exerciseApi';
 
@@ -16,7 +16,6 @@ interface Alumno {
 
 interface EjercicioSeleccionado {
   id: string;
-  rutina_id: string;
   ejercicio_id: string;
   series: number;
   repeticiones: number;
@@ -25,9 +24,24 @@ interface EjercicioSeleccionado {
   ejercicioDb?: ExerciseFromDB;
 }
 
+interface RutinaEditando {
+  id: string;
+  nombre: string;
+  descripcion: string | null;
+  diaSemana: string;
+  ejercicios: {
+    id: string;
+    ejercicioId: string;
+    series: number;
+    repeticiones: number;
+    peso: number;
+    orden: number;
+  }[];
+}
+
 const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
 
-export default function CrearRutinaPage() {
+function CrearRutinaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { role, isLoading: authLoading, trainerId } = useAuth();
@@ -45,20 +59,65 @@ export default function CrearRutinaPage() {
   const [showAlumnoDropdown, setShowAlumnoDropdown] = useState(false);
   const [showEjercicioDropdown, setShowEjercicioDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [preloadingAlumno, setPreloadingAlumno] = useState(false);
+  const [rutinaVersionId, setRutinaVersionId] = useState<string | null>(null);
+  const [loadingRutina, setLoadingRutina] = useState(false);
 
-  const preloadAlumno = useCallback(async (id: string) => {
-    setPreloadingAlumno(true);
-    const res = await fetch(`/api/alumnos/${id}`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data) {
-        setAlumnoId(data.id);
-        setAlumnoNombre(data.nombre);
-      }
+  useEffect(() => {
+    const alumId = searchParams.get('alumno');
+    const versionId = searchParams.get('version');
+    const diaParam = searchParams.get('dia');
+
+    if (versionId) {
+      setRutinaVersionId(versionId);
+      setLoadingRutina(true);
+      fetch(`/api/rutinas/${versionId}`)
+        .then(res => res.json())
+        .then((data: RutinaEditando) => {
+          setNombreRutina(data.nombre);
+          setDescripcion(data.descripcion || '');
+          setDia(data.diaSemana);
+          setEjercicios(data.ejercicios.map((e, i) => ({
+            id: crypto.randomUUID(),
+            ejercicio_id: e.ejercicioId,
+            series: e.series,
+            repeticiones: e.repeticiones,
+            peso: e.peso,
+            orden: i,
+          })));
+        })
+        .catch(err => console.error('Error cargando rutina:', err))
+        .finally(() => setLoadingRutina(false));
     }
-    setPreloadingAlumno(false);
-  }, []);
+
+    if (alumId) {
+      const preloadAlumno = async (id: string) => {
+        const res = await fetch(`/api/alumnos/${id}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data) {
+            setAlumnoId(data.id);
+            setAlumnoNombre(data.nombre);
+          }
+        }
+      };
+      preloadAlumno(alumId);
+    }
+    if (diaParam && diasSemana.includes(diaParam)) {
+      setDia(diaParam);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchQuery.length >= 2) {
+      setLoadingEjercicios(true);
+      searchExercises(searchQuery).then(results => {
+        setEjerciciosDisponibles(results);
+        setLoadingEjercicios(false);
+      }).catch(() => setLoadingEjercicios(false));
+    } else {
+      setEjerciciosDisponibles([]);
+    }
+  }, [searchQuery]);
 
   const buscarAlumnos = async (query: string) => {
     if (query.length < 2) {
@@ -84,7 +143,6 @@ export default function CrearRutinaPage() {
   const agregarEjercicio = (exercise: ExerciseFromDB) => {
     const nuevoEjercicio: EjercicioSeleccionado = {
       id: crypto.randomUUID(),
-      rutina_id: '',
       ejercicio_id: exercise.id,
       series: 3,
       repeticiones: 10,
@@ -121,23 +179,27 @@ export default function CrearRutinaPage() {
 
     setSaving(true);
     try {
-      const res = await fetch('/api/rutinas', {
-        method: 'POST',
+      const endpoint = rutinaVersionId ? `/api/rutinas/${rutinaVersionId}` : '/api/rutinas';
+      const method = rutinaVersionId ? 'PUT' : 'POST';
+      const body = {
+        nombre: nombreRutina,
+        descripcion,
+        diaSemana: dia,
+        alumnoId,
+        entrenadorId: trainerId,
+        ejercicios: ejercicios.map((ex, index) => ({
+          ejercicioId: ex.ejercicio_id,
+          series: ex.series,
+          repeticiones: ex.repeticiones,
+          peso: ex.peso,
+          orden: index,
+        })),
+      };
+
+      const res = await fetch(endpoint, {
+        method,
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          nombre: nombreRutina,
-          descripcion,
-          diaSemana: dia,
-          alumnoId,
-          entrenadorId: trainerId,
-          ejercicios: ejercicios.map((ex, index) => ({
-            ejercicioId: ex.ejercicio_id,
-            series: ex.series,
-            repeticiones: ex.repeticiones,
-            peso: ex.peso,
-            orden: index,
-          })),
-        }),
+        body: JSON.stringify(body),
       });
 
       if (!res.ok) throw new Error('Error saving');
@@ -163,14 +225,30 @@ export default function CrearRutinaPage() {
     );
   }
 
+  if (loadingRutina) {
+    return (
+      <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
+        <Header />
+        <main className="pt-20 pb-32 px-5 max-w-md mx-auto flex items-center justify-center min-h-[50vh]">
+          <div className="w-8 h-8 border-2 border-[#ff6b00] border-t-transparent rounded-full animate-spin" />
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
       <Header />
 
       <main className="pt-20 pb-44 px-5 max-w-md mx-auto">
         <section className="mb-6">
-          <p className="text-sm font-bold text-[#ffb693] uppercase tracking-widest mb-2 font-['Lexend']">Entrenador</p>
-          <h1 className="text-2xl font-bold text-[#dde4e6] font-['Lexend']">Crear Rutina</h1>
+          <p className="text-sm font-bold text-[#ffb693] uppercase tracking-widest mb-2 font-['Lexend']">
+            {rutinaVersionId ? 'Editando' : 'Entrenador'}
+          </p>
+          <h1 className="text-2xl font-bold text-[#dde4e6] font-['Lexend']">
+            {rutinaVersionId ? 'Modificar Rutina' : 'Crear Rutina'}
+          </h1>
         </section>
 
         <div className="space-y-6">
@@ -178,7 +256,8 @@ export default function CrearRutinaPage() {
             <label className="block text-sm font-bold text-[#ffb693] uppercase tracking-wider mb-2 font-['Lexend']">Alumno</label>
             <button
               onClick={() => setShowAlumnoDropdown(!showAlumnoDropdown)}
-              className="w-full bg-[#1a2123] border-b-2 border-[#2f3638] focus:border-[#ff6b00] px-4 py-3 text-[#dde4e6] font-['Lexend'] text-left flex items-center justify-between"
+              disabled={!!rutinaVersionId}
+              className="w-full bg-[#1a2123] border-b-2 border-[#2f3638] focus:border-[#ff6b00] px-4 py-3 text-[#dde4e6] font-['Lexend'] text-left flex items-center justify-between disabled:opacity-50"
             >
               {alumnoNombre || 'Seleccionar alumno...'}
               <ChevronRight className={`text-[#ff6b00] transition-transform ${showAlumnoDropdown ? 'rotate-90' : ''}`} size={20} />
@@ -291,10 +370,21 @@ export default function CrearRutinaPage() {
                       onClick={() => agregarEjercicio(ex)}
                       className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#2f3638] text-left border-b border-[#2f3638] last:border-b-0"
                     >
-                      <Dumbbell size={18} className="text-[#ff6b00]" />
+                      <div className="relative w-12 h-12 flex-shrink-0">
+                        <img
+                          src={getExerciseImageUrl(ex)}
+                          alt={ex.nameEs}
+                          className="w-full h-full object-cover rounded"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                        <Dumbbell size={18} className="hidden absolute inset-0 m-auto text-[#ff6b00]" />
+                      </div>
                       <div className="flex-1">
-                        <p className="font-bold text-[#dde4e6] font-['Lexend']">{ex.nombre}</p>
-                        <p className="text-[#e2bfb0] text-sm font-['Lexend']">{ex.grupoMuscular}</p>
+                        <p className="font-bold text-[#dde4e6] font-['Lexend']">{ex.nameEs}</p>
+                        <p className="text-[#e2bfb0] text-sm font-['Lexend']">{ex.primaryMusclesEs?.[0] || ex.primaryMuscles?.[0]}</p>
                       </div>
                       <Plus size={18} className="text-[#ff6b00]" />
                     </button>
@@ -313,8 +403,8 @@ export default function CrearRutinaPage() {
                   <div key={ex.id} className="bg-[#1a2123] rounded-xl p-4 border-l-4 border-[#ff6b00]">
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
-                        <h4 className="font-bold text-[#dde4e6] font-['Lexend']">{ex.ejercicioDb?.nombre || ex.ejercicio_id}</h4>
-                        <p className="text-[#e2bfb0] text-sm font-['Lexend']">{ex.ejercicioDb?.grupoMuscular}</p>
+                        <h4 className="font-bold text-[#dde4e6] font-['Lexend']">{ex.ejercicioDb?.nameEs || ex.ejercicio_id}</h4>
+                        <p className="text-[#e2bfb0] text-sm font-['Lexend']">{ex.ejercicioDb?.primaryMusclesEs?.[0]}</p>
                       </div>
                       <button
                         onClick={() => eliminarEjercicio(index)}
@@ -374,11 +464,23 @@ export default function CrearRutinaPage() {
           className="w-full bg-[#ff6b00] text-[#351000] py-4 rounded-xl font-['Lexend'] font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {saving ? <Loader2 className="animate-spin" size={22} /> : <Save size={22} />}
-          {saving ? 'Guardando...' : 'Guardar Rutina'}
+          {saving ? 'Guardando...' : rutinaVersionId ? 'Guardar Nueva Versión' : 'Guardar Rutina'}
         </button>
       </footer>
 
       <BottomNav />
     </div>
+  );
+}
+
+export default function CrearRutinaPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-[#0e1416] text-[#dde4e6] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#ff6b00] border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
+      <CrearRutinaContent />
+    </Suspense>
   );
 }

@@ -146,9 +146,9 @@ export async function fetchExercises(): Promise<ExerciseFromDB[]> {
       try {
         const { exercises, timestamp } = JSON.parse(cached);
         if (now - timestamp < CACHE_DURATION) {
-          cachedExercises = exercises;
+          cachedExercises = exercises as ExerciseFromDB[];
           cacheTime = timestamp;
-          return cachedExercises;
+return cachedExercises as ExerciseFromDB[];
         }
       } catch (e) {
         console.warn('Error reading cache:', e);
@@ -178,10 +178,10 @@ export async function fetchExercises(): Promise<ExerciseFromDB[]> {
       }
     }
 
-    return cachedExercises;
+    return cachedExercises as ExerciseFromDB[];
   } catch (error) {
     if (cachedExercises) {
-      return cachedExercises;
+      return cachedExercises as ExerciseFromDB[];
     }
     console.error('Failed to fetch exercises:', error);
     throw error;

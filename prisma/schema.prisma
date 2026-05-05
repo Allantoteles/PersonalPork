@@ -26,15 +26,12 @@ model Usuario {
   entrenador   Usuario? @relation("EntrenadorAtleta", fields: [entrenadorId], references: [id])
   atletas      Usuario[] @relation("EntrenadorAtleta")
   createdAt    DateTime @default(now())
-  rutinasAlumno Rutina[] @relation("AlumnoRutinas")
-  rutinasEntrenador Rutina[] @relation("EntrenadorRutinas")
 }
 
 model Ejercicio {
-  id              String   @id @default(uuid())
+  id               String   @id @default(uuid())
   nombre           String
   nombreOriginal   String?
-  descripcion      String?
   grupoMuscular    String
   gruposMusculares String
   equipo           String?
@@ -43,38 +40,42 @@ model Ejercicio {
   categoria       String?
   creadoPor        String?
   createdAt        DateTime @default(now())
-  rutinaEjercicios RutinaEjercicio[]
 }
 
 model Rutina {
-  id              String   @id @default(uuid())
-  nombre           String
-  descripcion      String?
-  diaSemana        String
-  alumnoId        String
-  alumno           Usuario @relation("AlumnoRutinas", fields: [alumnoId], references: [id])
-  entrenadorId     String
-  entrenador       Usuario @relation("EntrenadorRutinas", fields: [entrenadorId], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-  rutinaEjercicios RutinaEjercicio[]
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now())
+  alumnoId  String
+  entrenadorId String
+  versiones RutinaVersion[]
 }
 
-model RutinaEjercicio {
-  id           String   @id @default(uuid())
-  rutinaId     String
-  rutina       Rutina  @relation(fields: [rutinaId], references: [id], onDelete: Cascade)
-  ejercicioId  String
-  ejercicio    Ejercicio @relation(fields: [ejercicioId], references: [id])
-  series       Int      @default(3)
-  repeticiones Int      @default(10)
-  peso         Float    @default(0)
-  orden        Int      @default(0)
+model RutinaVersion {
+  id              String   @id @default(uuid())
+  rutinaOriginalId String?
+  rutinaOriginal  Rutina?  @relation(fields: [rutinaOriginalId], references: [id])
+  nombre          String
+  descripcion     String?
+  diaSemana       String
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  ejercicios      RutinaEjercicioVersion[]
+}
+
+model RutinaEjercicioVersion {
+  id              String   @id @default(uuid())
+  rutinaVersionId String
+  rutinaVersion   RutinaVersion @relation(fields: [rutinaVersionId], references: [id], onDelete: Cascade)
+  ejercicioId     String
+  series          Int      @default(3)
+  repeticiones    Int      @default(10)
+  peso            Float    @default(0)
+  orden           Int      @default(0)
 }
 
 model RegistroEntrenamiento {
   id              String   @id @default(uuid())
-  rutinaId        String?
+  rutinaVersionId String?
   alumnoId        String
   fecha           DateTime @default(now())
   estado          String   @default("completado")
@@ -90,7 +91,7 @@ model DetalleEntrenamiento {
   id                       String   @id @default(uuid())
   registroEntrenamientoId  String
   registro                 RegistroEntrenamiento @relation(fields: [registroEntrenamientoId], references: [id], onDelete: Cascade)
-  rutinaEjercicioId        String
+  rutinaEjercicioVersionId String
   numeroSerie              Int
   repeticiones             Int
   peso                     Float   @default(0)
