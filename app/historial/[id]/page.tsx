@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
 import Header from '../../components/Header';
 import BottomNav from '../../components/BottomNav';
-import { ChevronRight, Dumbbell, Check, X, Loader2 } from 'lucide-react';
+import { ChevronRight, Dumbbell, Check, X } from 'lucide-react';
+import { useHistorialDetalle } from '../../../lib/api-hooks';
 
 const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -40,31 +40,11 @@ interface RegistroDetalle {
   detalles: DetalleEjercicio[];
 }
 
-export default function HistorialDetallePage() {
-  const params = useParams();
-  const [registro, setRegistro] = useState<RegistroDetalle | null>(null);
-  const [loading, setLoading] = useState(true);
+export default function HistorialDetallePage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
+  const { data: registro, isLoading } = useHistorialDetalle(id);
 
-  useEffect(() => {
-    if (!params.id) return;
-
-    const fetchDetalle = async () => {
-      try {
-        const res = await fetch(`/api/historial/${params.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRegistro(data);
-        }
-      } catch (error) {
-        console.error('Error fetching detalle:', error);
-      }
-      setLoading(false);
-    };
-
-    fetchDetalle();
-  }, [params.id]);
-
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
         <Header />

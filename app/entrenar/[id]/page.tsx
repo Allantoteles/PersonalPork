@@ -1,31 +1,15 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { use, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import Header from '../../components/Header';
 import BottomNav from '../../components/BottomNav';
 import { ChevronRight, Dumbbell, Check } from 'lucide-react';
-import { query } from '../../../lib/turso';
-import { getExerciseImageUrl, ExerciseFromDB } from '../../../lib/exerciseApi';
 import { useAuth } from '../../components/AuthProvider';
-
-interface RutinaVersionRow {
-  id: string;
-  nombre: string;
-  descripcion: string | null;
-  diaSemana: string;
-}
-
-interface RutinaEjercicioVersionRow {
-  id: string;
-  rutinaVersionId: string;
-  ejercicioId: string;
-  series: number;
-  repeticiones: number;
-  peso: number;
-  orden: number;
-}
+import { useRutinaDetalleDb } from '../../../lib/turso-hooks';
+import { useRegistrarSet } from '../../../lib/api-hooks';
+import { getExerciseImageUrl, ExerciseFromDB } from '../../../lib/exerciseApi';
 
 interface SetData {
   setNumber: number;
@@ -34,7 +18,14 @@ interface SetData {
   completed: boolean;
 }
 
-interface EjercicioExpandido extends RutinaEjercicioVersionRow {
+interface EjercicioExpandido {
+  id: string;
+  rutinaVersionId: string;
+  ejercicioId: string;
+  series: number;
+  repeticiones: number;
+  peso: number;
+  orden: number;
   ejercicioDb: ExerciseFromDB | null;
   sets: SetData[];
 }
@@ -43,28 +34,60 @@ let cachedExercises: ExerciseFromDB[] | null = null;
 let cacheTime = 0;
 const CACHE_DURATION = 1000 * 60 * 60 * 24;
 
-export default function WorkoutPage() {
-  const params = useParams();
-  const rutinaVersionId = params.id as string;
+async function getCachedExercises(): Promise<ExerciseFromDB[]> {
+  if (cachedExercises && Date.now() - cacheTime < CACHE_DURATION) {
+    return cachedExercises;
+  }
+
+  const response = await fetch('https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json');
+  cachedExercises = await response.json() as ExerciseFromDB[];
+  cacheTime = Date.now();
+  return cachedExercises;
+}
+
+export default function WorkoutPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = use(params);
+  const rutinaVersionId = resolvedParams.id;
   const { user } = useAuth();
-  const [rutina, setRutina] = useState<RutinaVersionRow | null>(null);
   const [ejercicios, setEjercicios] = useState<EjercicioExpandido[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  const { data: rutinaData, isLoading } = useRutinaDetalleDb(rutinaVersionId);
+  const registrarSet = useRegistrarSet();
+
+  if (rutinaData && !isInitialized) {
+    setIsInitialized(true);
+    getCachedExercises().then(apiExercises => {
+      const ejerciciosCompletos: EjercicioExpandido[] = rutinaData.ejercicios.map(re => {
+        const ejercicioInfo = apiExercises.find((e) => e.id === re.ejercicioId);
+
+        const sets: SetData[] = [];
+        for (let i = 0; i < re.series; i++) {
+          sets.push({
+            setNumber: i + 1,
+            peso: re.peso || 0,
+            repeticiones: re.repeticiones || 0,
+            completed: false,
+          });
+        }
+
+        return { ...re, ejercicioDb: ejercicioInfo || null, sets };
+      });
+      setEjercicios(ejerciciosCompletos);
+    });
+  }
 
   const guardarSet = async (rutinaEjercicioVersionId: string, setNumber: number, repeticiones: number, peso: number, completado: boolean) => {
+    if (!user?.id) return;
     try {
-      await fetch('/api/registro', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          rutinaVersionId,
-          alumnoId: user?.id,
-          rutinaEjercicioVersionId,
-          numeroSerie: setNumber,
-          repeticiones,
-          peso,
-          completado,
-        }),
+      await registrarSet.mutateAsync({
+        rutinaVersionId,
+        alumnoId: user.id,
+        rutinaEjercicioVersionId,
+        numeroSerie: setNumber,
+        repeticiones,
+        peso,
+        completado,
       });
     } catch (error) {
       console.error('Error guardando set:', error);
@@ -87,50 +110,6 @@ export default function WorkoutPage() {
     });
   };
 
-  useEffect(() => {
-    const cargarDatos = async () => {
-      const rutinasData = await query<RutinaVersionRow>(
-        `SELECT * FROM RutinaVersion WHERE id = ?`,
-        [rutinaVersionId]
-      );
-      if (rutinasData.length > 0) {
-        setRutina(rutinasData[0]);
-      }
-
-      const rutinaEjercicios = await query<RutinaEjercicioVersionRow>(
-        `SELECT * FROM RutinaEjercicioVersion WHERE rutinaVersionId = ? ORDER BY orden ASC`,
-        [rutinaVersionId]
-      );
-
-      if (!cachedExercises || Date.now() - cacheTime > CACHE_DURATION) {
-        const response = await fetch('https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json');
-        cachedExercises = await response.json();
-        cacheTime = Date.now();
-      }
-
-      const ejerciciosCompletos: EjercicioExpandido[] = rutinaEjercicios.map(re => {
-        const ejercicioInfo = cachedExercises?.find((e) => e.id === re.ejercicioId);
-
-        const sets: SetData[] = [];
-        for (let i = 0; i < re.series; i++) {
-          sets.push({
-            setNumber: i + 1,
-            peso: re.peso || 0,
-            repeticiones: re.repeticiones || 0,
-            completed: false,
-          });
-        }
-
-        return { ...re, ejercicioDb: ejercicioInfo || null, sets };
-      });
-
-      setEjercicios(ejerciciosCompletos);
-      setLoading(false);
-    };
-
-    cargarDatos();
-  }, [rutinaVersionId]);
-
   const updateSetDato = (ejercicioIndex: number, setIndex: number, campo: 'peso' | 'repeticiones', valor: number) => {
     setEjercicios(prev => prev.map((ej, ei) => {
       if (ei !== ejercicioIndex) return ej;
@@ -143,7 +122,7 @@ export default function WorkoutPage() {
   const totalSets = ejercicios.reduce((acc, ej) => acc + ej.series, 0);
   const progress = totalSets > 0 ? Math.round((completedCount / totalSets) * 100) : 0;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
         <Header />
@@ -162,7 +141,7 @@ export default function WorkoutPage() {
           <Link href="/entrenar" className="text-[#dde4e6] active:scale-95 transition-transform">
             <ChevronRight className="rotate-180" size={24} />
           </Link>
-          <h1 className="font-bold tracking-tighter text-[#ff6b00] text-xl font-['Lexend']">{rutina?.nombre || 'Rutina'}</h1>
+          <h1 className="font-bold tracking-tighter text-[#ff6b00] text-xl font-['Lexend']">{rutinaData?.nombre || 'Rutina'}</h1>
         </div>
         <div className="flex items-center gap-3">
           <div className="text-right">

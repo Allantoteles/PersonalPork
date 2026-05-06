@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
-import { Dumbbell, Calendar, ChevronRight } from 'lucide-react';
+import { Dumbbell, ChevronRight } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
+import { useHistorial } from '../../lib/api-hooks';
 
 const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
@@ -36,29 +36,9 @@ function formatearFecha(fechaStr: string): { dia: string; mes: string; anio: str
 
 export default function HistorialPage() {
   const { user, isLoading: authLoading } = useAuth();
-  const [registros, setRegistros] = useState<RegistroDB[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: registros = [], isLoading } = useHistorial(user?.id || null);
 
-  useEffect(() => {
-    if (authLoading || !user) return;
-
-    const fetchHistorial = async () => {
-      try {
-        const res = await fetch(`/api/historial?userId=${user.id}`);
-        if (res.ok) {
-          const data = await res.json();
-          setRegistros(data);
-        }
-      } catch (error) {
-        console.error('Error fetching historial:', error);
-      }
-      setLoading(false);
-    };
-
-    fetchHistorial();
-  }, [user, authLoading]);
-
-  if (authLoading || loading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
         <Header />
@@ -88,7 +68,7 @@ export default function HistorialPage() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {registros.map((registro) => {
+            {registros.map((registro: RegistroDB) => {
               const fecha = formatearFecha(registro.fecha);
               const volumenDisplay = registro.volumenTotal >= 1000
                 ? `${(registro.volumenTotal / 1000).toFixed(1)}k`
@@ -104,7 +84,7 @@ export default function HistorialPage() {
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <p className="font-bold text-[#dde4e6] font-['Lexend']">{registro.rutinaNombre}</p>
-                        <p className="text-xs text-[#e2bfb0] font-['Lexend']">
+                        <p className="text-xs text-[#e2bfb0] font-['Lexend]">
                           {fecha.hora} • {fecha.dia} {fecha.mes} {fecha.anio}
                         </p>
                       </div>

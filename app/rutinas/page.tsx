@@ -1,29 +1,18 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { Plus, Trash2, ChevronRight, User, Save, Search, Dumbbell, Loader2, Pencil, X, ImagePlus } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
-import { searchExercises, getExerciseById, ExerciseFromDB, getExerciseImageUrl } from '../../lib/exerciseApi';
+import { useCrearRutina, useRutina, useEjerciciosLocales, useEjerciciosApi, useAlumno, type ExerciseFromDB, type EjercicioLocal } from '../../lib/api-hooks';
+import { getExerciseImageUrl } from '../../lib/exerciseApi';
 
 interface Alumno {
   id: string;
   nombre: string;
   email: string;
-}
-
-interface EjercicioLocal {
-  id: string;
-  nombre: string;
-  grupoMuscular: string;
-  gruposMusculares: string;
-  equipo: string | null;
-  nivel: string;
-  instrucciones: string;
-  categoria: string | null;
-  imagen: string | null;
 }
 
 interface EjercicioSeleccionado {
@@ -36,21 +25,6 @@ interface EjercicioSeleccionado {
   ejercicioDb?: ExerciseFromDB;
   ejercicioLocal?: EjercicioLocal;
   isLocal?: boolean;
-}
-
-interface RutinaEditando {
-  id: string;
-  nombre: string;
-  descripcion: string | null;
-  diaSemana: string;
-  ejercicios: {
-    id: string;
-    ejercicioId: string;
-    series: number;
-    repeticiones: number;
-    peso: number;
-    orden: number;
-  }[];
 }
 
 const diasSemana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -70,17 +44,6 @@ const NIVELES = ['principiante', 'intermedio', 'avanzado'];
 
 const EQUIPOS = ['Barra', 'Mancuernas', 'Máquina', 'Polea', 'Cuerpo Libre', 'Otro'];
 
-async function checkIsLocalExercise(exerciseId: string): Promise<boolean> {
-  try {
-    const res = await fetch(`/api/ejercicios?search=${encodeURIComponent(exerciseId)}`);
-    if (res.ok) {
-      const ejercicios = await res.json();
-      return ejercicios.some((e: { id: string; nombre: string }) => e.id === exerciseId || e.nombre === exerciseId);
-    }
-  } catch {}
-  return false;
-}
-
 function CrearRutinaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -92,133 +55,42 @@ function CrearRutinaContent() {
   const [nombreRutina, setNombreRutina] = useState('');
   const [descripcion, setDescripcion] = useState('');
   const [ejercicios, setEjercicios] = useState<EjercicioSeleccionado[]>([]);
-  const [ejerciciosDisponibles, setEjerciciosDisponibles] = useState<(ExerciseFromDB | EjercicioLocal)[]>([]);
-  const [loadingAlumnos, setLoadingAlumnos] = useState(false);
   const [loadingEjercicios, setLoadingEjercicios] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [showAlumnoDropdown, setShowAlumnoDropdown] = useState(false);
   const [showCrearEjercicio, setShowCrearEjercicio] = useState(false);
   const [searchMode, setSearchMode] = useState<'api' | 'local'>('api');
   const [searchQuery, setSearchQuery] = useState('');
   const [rutinaVersionId, setRutinaVersionId] = useState<string | null>(null);
-  const [loadingRutina, setLoadingRutina] = useState(false);
+  const [searchAlumnoQuery, setSearchAlumnoQuery] = useState('');
 
-  useEffect(() => {
-    const alumId = searchParams.get('alumno');
-    const versionId = searchParams.get('version');
-    const diaParam = searchParams.get('dia');
+  const crearRutina = useCrearRutina();
+  const { data: rutinaData, isLoading: loadingRutina } = useRutina(rutinaVersionId);
 
-    if (versionId) {
-      setRutinaVersionId(versionId);
-      setLoadingRutina(true);
-      fetch(`/api/rutinas/${versionId}`)
-        .then(res => res.json())
-        .then(async (data: RutinaEditando) => {
-          setNombreRutina(data.nombre);
-          setDescripcion(data.descripcion || '');
-          setDia(data.diaSemana);
+  const { data: ejerciciosApi = [] } = useEjerciciosApi(searchMode === 'api' ? searchQuery : '');
+  const { data: ejerciciosLocal = [] } = useEjerciciosLocales(searchMode === 'local' ? searchQuery : '');
 
-          const ejerciciosConDatos = await Promise.all(
-            data.ejercicios.map(async (e, i) => {
-              const isLocal = await checkIsLocalExercise(e.ejercicioId);
-              if (isLocal) {
-                const localRes = await fetch(`/api/ejercicios?search=${encodeURIComponent(e.ejercicioId)}`);
-                const localData = await localRes.json();
-                const ejercicioLocal = localData.find((l: EjercicioLocal) => l.id === e.ejercicioId);
-                return {
-                  id: crypto.randomUUID(),
-                  ejercicio_id: e.ejercicioId,
-                  series: e.series,
-                  repeticiones: e.repeticiones,
-                  peso: e.peso,
-                  orden: i,
-                  isLocal: true,
-                  ejercicioLocal,
-                  ejercicioDb: undefined,
-                };
-              } else {
-                const ejercicioDb = await getExerciseById(e.ejercicioId);
-                return {
-                  id: crypto.randomUUID(),
-                  ejercicio_id: e.ejercicioId,
-                  series: e.series,
-                  repeticiones: e.repeticiones,
-                  peso: e.peso,
-                  orden: i,
-                  isLocal: false,
-                  ejercicioDb: ejercicioDb || { id: e.ejercicioId, name: 'Ejercicio API', nameEs: 'Ejercicio API', images: [], primaryMuscles: [], primaryMusclesEs: [], secondaryMuscles: [], secondaryMusclesEs: [], equipment: null, level: '', instructions: [], category: '' },
-                  ejercicioLocal: undefined,
-                };
-              }
-            })
-          );
-          setEjercicios(ejerciciosConDatos);
-        })
-        .catch(err => console.error('Error cargando rutina:', err))
-        .finally(() => setLoadingRutina(false));
-    }
+  const ejerciciosDisponibles = searchMode === 'api' ? ejerciciosApi : ejerciciosLocal;
 
-    if (alumId) {
-      const preloadAlumno = async (id: string) => {
-        const res = await fetch(`/api/alumnos/${id}`);
-        if (res.ok) {
-          const data = await res.json();
-          if (data) {
-            setAlumnoId(data.id);
-            setAlumnoNombre(data.nombre);
-          }
-        }
-      };
-      preloadAlumno(alumId);
-    }
-    if (diaParam && diasSemana.includes(diaParam)) {
-      setDia(diaParam);
-    }
-  }, [searchParams]);
-
-  useEffect(() => {
-    if (searchQuery.length < 2) {
-      setEjerciciosDisponibles([]);
-      return;
-    }
-
-    setLoadingEjercicios(true);
-
-    if (searchMode === 'api') {
-      searchExercises(searchQuery).then(results => {
-        setEjerciciosDisponibles(results);
-        setLoadingEjercicios(false);
-      }).catch(() => setLoadingEjercicios(false));
-    } else {
-      fetch(`/api/ejercicios?search=${encodeURIComponent(searchQuery)}`)
-        .then(res => res.json())
-        .then(data => {
-          setEjerciciosDisponibles(data);
-          setLoadingEjercicios(false);
-        })
-        .catch(() => setLoadingEjercicios(false));
-    }
-  }, [searchQuery, searchMode]);
-
-  const buscarAlumnos = async (query: string) => {
-    if (query.length < 2) {
-      setAlumnos([]);
-      return;
-    }
-    setLoadingAlumnos(true);
-    const res = await fetch(`/api/atletas?query=${encodeURIComponent(query)}`);
+  const handleCrearEjercicio = async (ejercicioData: Partial<EjercicioLocal>) => {
+    const res = await fetch('/api/ejercicios', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(ejercicioData),
+    });
     if (res.ok) {
-      const data = await res.json();
-      setAlumnos(data);
+      const ejercicio = await res.json();
+      agregarEjercicio(ejercicio, true);
     }
-    setLoadingAlumnos(false);
   };
 
-  const seleccionarAlumno = (alumno: Alumno) => {
-    setAlumnoId(alumno.id);
-    setAlumnoNombre(alumno.nombre);
-    setShowAlumnoDropdown(false);
-    setAlumnos([]);
+  const handleUploadImagen = async (ejercicioId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('image', file);
+    formData.append('ejercicioId', ejercicioId);
+    await fetch('/api/ejercicios/upload', {
+      method: 'POST',
+      body: formData,
+    });
   };
 
   const agregarEjercicio = (exercise: ExerciseFromDB | EjercicioLocal, isLocal: boolean = false) => {
@@ -235,7 +107,6 @@ function CrearRutinaContent() {
     };
     setEjercicios([...ejercicios, newEx]);
     setSearchQuery('');
-    setEjerciciosDisponibles([]);
   };
 
   const actualizarEjercicio = (index: number, campo: string, valor: number) => {
@@ -259,39 +130,44 @@ function CrearRutinaContent() {
       return;
     }
 
-    setSaving(true);
-    try {
-      const endpoint = rutinaVersionId ? `/api/rutinas/${rutinaVersionId}` : '/api/rutinas';
-      const method = rutinaVersionId ? 'PUT' : 'POST';
-      const body = {
-        nombre: nombreRutina,
-        descripcion,
-        diaSemana: dia,
-        alumnoId,
-        entrenadorId: trainerId,
-        ejercicios: ejercicios.map((ex, index) => ({
-          ejercicioId: ex.ejercicio_id,
-          series: ex.series,
-          repeticiones: ex.repeticiones,
-          peso: ex.peso,
-          orden: index,
-        })),
-      };
+    const body = {
+      nombre: nombreRutina,
+      descripcion,
+      diaSemana: dia,
+      alumnoId,
+      entrenadorId: trainerId,
+      ejercicios: ejercicios.map((ex, index) => ({
+        ejercicioId: ex.ejercicio_id,
+        series: ex.series,
+        repeticiones: ex.repeticiones,
+        peso: ex.peso,
+        orden: index,
+      })),
+    };
 
-      const res = await fetch(endpoint, {
-        method,
+    if (rutinaVersionId) {
+      const res = await fetch(`/api/rutinas/${rutinaVersionId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-
       if (!res.ok) throw new Error('Error saving');
-      router.push('/alumnos');
-    } catch (error) {
-      console.error('Error al guardar:', error);
-      alert('Error al guardar la rutina');
+    } else {
+      await crearRutina.mutateAsync(body);
     }
-    setSaving(false);
+    router.push('/alumnos');
   };
+
+  const seleccionarAlumno = (alumno: Alumno) => {
+    setAlumnoId(alumno.id);
+    setAlumnoNombre(alumno.nombre);
+    setShowAlumnoDropdown(false);
+    setSearchAlumnoQuery('');
+  };
+
+  const filteredAlumnos = searchAlumnoQuery.length >= 2
+    ? alumnos.filter(a => a.nombre.toLowerCase().includes(searchAlumnoQuery.toLowerCase()))
+    : [];
 
   if (role !== 'entrenador') {
     return (
@@ -352,17 +228,14 @@ function CrearRutinaContent() {
                   <input
                     type="text"
                     placeholder="Buscar por nombre..."
-                    value={searchQuery}
-                    onChange={(e) => {
-                      setSearchQuery(e.target.value);
-                      buscarAlumnos(e.target.value);
-                    }}
+                    value={searchAlumnoQuery}
+                    onChange={(e) => setSearchAlumnoQuery(e.target.value)}
                     className="w-full bg-transparent pl-10 pr-4 py-3 text-[#dde4e6] font-['Lexend'] focus:ring-0 focus:outline-none border-b border-[#2f3638]"
                   />
                 </div>
-                {alumnos.length > 0 && (
+                {filteredAlumnos.length > 0 && (
                   <div className="max-h-48 overflow-y-auto">
-                    {alumnos.map(alumno => (
+                    {filteredAlumnos.map(alumno => (
                       <button
                         key={alumno.id}
                         onClick={() => seleccionarAlumno(alumno)}
@@ -619,7 +492,7 @@ function CrearRutinaContent() {
                     </button>
                   </div>
                 ))}
-              </div>
+            </div>
           </div>
         </div>
       </main>
@@ -627,11 +500,11 @@ function CrearRutinaContent() {
       <footer className="fixed bottom-20 w-full bg-[#0e1416] p-4 z-40 border-t border-[#2f3638]">
         <button
           onClick={guardarRutina}
-          disabled={saving || !alumnoId || !dia || !nombreRutina || ejercicios.length === 0}
+          disabled={crearRutina.isPending || !alumnoId || !dia || !nombreRutina || ejercicios.length === 0}
           className="w-full bg-[#ff6b00] text-[#351000] py-4 rounded-xl font-['Lexend'] font-bold text-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {saving ? <Loader2 className="animate-spin" size={22} /> : <Save size={22} />}
-          {saving ? 'Guardando...' : rutinaVersionId ? 'Guardar Nueva Versión' : 'Guardar Rutina'}
+          {crearRutina.isPending ? <Loader2 className="animate-spin" size={22} /> : <Save size={22} />}
+          {crearRutina.isPending ? 'Guardando...' : rutinaVersionId ? 'Guardar Nueva Versión' : 'Guardar Rutina'}
         </button>
       </footer>
 
@@ -738,7 +611,7 @@ function CrearEjercicioModal({ onClose, onCreated }: CrearEjercicioModalProps) {
 
         <div className="p-4 space-y-4">
           {error && (
-            <div className="bg-red-500/20 border border-red-500/50 rounded-lg px-4 py-2 text-red-500 text-sm font-['Lexend']">
+            <div className="bg-red-500/20 border border-red-500/50 rounded-lg px-4 py-2 text-red-500 text-sm font-['Lexend]">
               {error}
             </div>
           )}
@@ -851,7 +724,7 @@ function CrearEjercicioModal({ onClose, onCreated }: CrearEjercicioModalProps) {
                   className="hidden"
                 />
                 <ImagePlus size={24} className="mx-auto text-[#5a4136] mb-2" />
-                <p className="text-[#5a4136] text-sm font-['Lexend']">
+                <p className="text-[#5a4136] text-sm font-['Lexend]">
                   {imagen ? 'Cambiar' : 'Subir imagen'}
                 </p>
                 <p className="text-[#5a4136] text-xs font-['Lexend'] mt-1">jpg, png, webp</p>
