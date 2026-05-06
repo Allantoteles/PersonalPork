@@ -6,7 +6,7 @@ import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { Plus, Trash2, ChevronRight, User, Save, Search, Dumbbell, Loader2, Pencil, X, ImagePlus } from 'lucide-react';
 import { useAuth } from '../components/AuthProvider';
-import { searchExercises, ExerciseFromDB, getExerciseImageUrl } from '../../lib/exerciseApi';
+import { searchExercises, getExerciseById, ExerciseFromDB, getExerciseImageUrl } from '../../lib/exerciseApi';
 
 interface Alumno {
   id: string;
@@ -70,6 +70,17 @@ const NIVELES = ['principiante', 'intermedio', 'avanzado'];
 
 const EQUIPOS = ['Barra', 'Mancuernas', 'Máquina', 'Polea', 'Cuerpo Libre', 'Otro'];
 
+async function checkIsLocalExercise(exerciseId: string): Promise<boolean> {
+  try {
+    const res = await fetch(`/api/ejercicios?search=${encodeURIComponent(exerciseId)}`);
+    if (res.ok) {
+      const ejercicios = await res.json();
+      return ejercicios.some((e: { id: string; nombre: string }) => e.id === exerciseId || e.nombre === exerciseId);
+    }
+  } catch {}
+  return false;
+}
+
 function CrearRutinaContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -86,7 +97,6 @@ function CrearRutinaContent() {
   const [loadingEjercicios, setLoadingEjercicios] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showAlumnoDropdown, setShowAlumnoDropdown] = useState(false);
-  const [showEjercicioDropdown, setShowEjercicioDropdown] = useState(false);
   const [showCrearEjercicio, setShowCrearEjercicio] = useState(false);
   const [searchMode, setSearchMode] = useState<'api' | 'local'>('api');
   const [searchQuery, setSearchQuery] = useState('');
@@ -103,18 +113,46 @@ function CrearRutinaContent() {
       setLoadingRutina(true);
       fetch(`/api/rutinas/${versionId}`)
         .then(res => res.json())
-        .then((data: RutinaEditando) => {
+        .then(async (data: RutinaEditando) => {
           setNombreRutina(data.nombre);
           setDescripcion(data.descripcion || '');
           setDia(data.diaSemana);
-          setEjercicios(data.ejercicios.map((e, i) => ({
-            id: crypto.randomUUID(),
-            ejercicio_id: e.ejercicioId,
-            series: e.series,
-            repeticiones: e.repeticiones,
-            peso: e.peso,
-            orden: i,
-          })));
+
+          const ejerciciosConDatos = await Promise.all(
+            data.ejercicios.map(async (e, i) => {
+              const isLocal = await checkIsLocalExercise(e.ejercicioId);
+              if (isLocal) {
+                const localRes = await fetch(`/api/ejercicios?search=${encodeURIComponent(e.ejercicioId)}`);
+                const localData = await localRes.json();
+                const ejercicioLocal = localData.find((l: EjercicioLocal) => l.id === e.ejercicioId);
+                return {
+                  id: crypto.randomUUID(),
+                  ejercicio_id: e.ejercicioId,
+                  series: e.series,
+                  repeticiones: e.repeticiones,
+                  peso: e.peso,
+                  orden: i,
+                  isLocal: true,
+                  ejercicioLocal,
+                  ejercicioDb: undefined,
+                };
+              } else {
+                const ejercicioDb = await getExerciseById(e.ejercicioId);
+                return {
+                  id: crypto.randomUUID(),
+                  ejercicio_id: e.ejercicioId,
+                  series: e.series,
+                  repeticiones: e.repeticiones,
+                  peso: e.peso,
+                  orden: i,
+                  isLocal: false,
+                  ejercicioDb: ejercicioDb || { id: e.ejercicioId, name: 'Ejercicio API', nameEs: 'Ejercicio API', images: [], primaryMuscles: [], primaryMusclesEs: [], secondaryMuscles: [], secondaryMusclesEs: [], equipment: null, level: '', instructions: [], category: '' },
+                  ejercicioLocal: undefined,
+                };
+              }
+            })
+          );
+          setEjercicios(ejerciciosConDatos);
         })
         .catch(err => console.error('Error cargando rutina:', err))
         .finally(() => setLoadingRutina(false));
@@ -184,19 +222,18 @@ function CrearRutinaContent() {
   };
 
   const agregarEjercicio = (exercise: ExerciseFromDB | EjercicioLocal, isLocal: boolean = false) => {
-    const nuevoEjercicio: EjercicioSeleccionado = {
+    const newEx: EjercicioSeleccionado = {
       id: crypto.randomUUID(),
       ejercicio_id: isLocal ? (exercise as EjercicioLocal).id : (exercise as ExerciseFromDB).id,
       series: 3,
       repeticiones: 10,
       peso: 0,
       orden: ejercicios.length,
-      ejercicioDb: isLocal ? undefined : exercise as ExerciseFromDB,
-      ejercicioLocal: isLocal ? exercise as EjercicioLocal : undefined,
+      ejercicioDb: isLocal ? undefined : { ...exercise } as ExerciseFromDB,
+      ejercicioLocal: isLocal ? { ...exercise } as EjercicioLocal : undefined,
       isLocal,
     };
-    setEjercicios([...ejercicios, nuevoEjercicio]);
-    setShowEjercicioDropdown(false);
+    setEjercicios([...ejercicios, newEx]);
     setSearchQuery('');
     setEjerciciosDisponibles([]);
   };
@@ -406,55 +443,55 @@ function CrearRutinaContent() {
               />
             )}
 
-            {showEjercicioDropdown && (
-              <div className="bg-[#1a2123] border border-[#2f3638] rounded-lg overflow-hidden mb-3">
-                <div className="flex border-b border-[#2f3638]">
-                  <button
-                    onClick={() => setSearchMode('api')}
-                    className={`flex-1 px-4 py-3 text-sm font-bold font-['Lexend'] ${
-                      searchMode === 'api'
-                        ? 'bg-[#ff6b00] text-[#351000]'
-                        : 'text-[#dde4e6] hover:bg-[#2f3638]'
-                    }`}
-                  >
-                    API Externa
-                  </button>
-                  <button
-                    onClick={() => setSearchMode('local')}
-                    className={`flex-1 px-4 py-3 text-sm font-bold font-['Lexend'] ${
-                      searchMode === 'local'
-                        ? 'bg-[#ff6b00] text-[#351000]'
-                        : 'text-[#dde4e6] hover:bg-[#2f3638]'
-                    }`}
-                  >
-                    BD Local
-                  </button>
-                </div>
-                <div className="relative">
-                  <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5a4136]" />
-                  <input
-                    type="text"
-                    placeholder={searchMode === 'api' ? 'Buscar en API externa...' : 'Buscar en ejercicios locales...'}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-transparent pl-10 pr-4 py-3 text-[#dde4e6] font-['Lexend'] focus:ring-0 focus:outline-none border-b border-[#2f3638]"
-                  />
-                </div>
-                <div className="max-h-48 overflow-y-auto">
+            <div className="relative mb-3">
+              <div className="flex border-b border-[#2f3638]">
+                <button
+                  onClick={() => setSearchMode('api')}
+                  className={`flex-1 px-4 py-3 text-sm font-bold font-['Lexend'] ${
+                    searchMode === 'api'
+                      ? 'bg-[#ff6b00] text-[#351000]'
+                      : 'text-[#dde4e6] hover:bg-[#2f3638]'
+                  }`}
+                >
+                  API Externa
+                </button>
+                <button
+                  onClick={() => setSearchMode('local')}
+                  className={`flex-1 px-4 py-3 text-sm font-bold font-['Lexend'] ${
+                    searchMode === 'local'
+                      ? 'bg-[#ff6b00] text-[#351000]'
+                      : 'text-[#dde4e6] hover:bg-[#2f3638]'
+                  }`}
+                >
+                  BD Local
+                </button>
+              </div>
+              <div className="relative">
+                <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-[#5a4136]" />
+                <input
+                  type="text"
+                  placeholder={searchMode === 'api' ? 'Buscar en API externa...' : 'Buscar en ejercicios locales...'}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#1a2123] pl-10 pr-4 py-3 text-[#dde4e6] font-['Lexend'] focus:ring-0 focus:outline-none"
+                />
+              </div>
+              {searchQuery.length >= 2 && (
+                <div className="bg-[#1a2123] border border-[#2f3638] mt-1 rounded-lg overflow-hidden max-h-48 overflow-y-auto">
                   {loadingEjercicios ? (
                     <div className="px-4 py-3 text-center">
                       <div className="w-6 h-6 border-2 border-[#ff6b00] border-t-transparent rounded-full animate-spin mx-auto" />
                     </div>
                   ) : ejerciciosDisponibles.length === 0 ? (
                     <p className="px-4 py-3 text-[#5a4136] text-sm font-['Lexend'] text-center">
-                      {searchQuery.length < 2 ? 'Escribe al menos 2 caracteres' : 'Sin resultados'}
+                      Sin resultados
                     </p>
                   ) : (
                     ejerciciosDisponibles.map(ex => {
                       const isLocal = searchMode === 'local';
                       const name = isLocal ? (ex as EjercicioLocal).nombre : (ex as ExerciseFromDB).nameEs;
                       const imageUrl = isLocal
-                        ? ((ex as EjercicioLocal).imagen || '')
+                        ? `/ejercicios/${ex.id}.jpg`
                         : getExerciseImageUrl(ex as ExerciseFromDB);
                       const muscle = isLocal
                         ? (ex as EjercicioLocal).grupoMuscular
@@ -463,7 +500,10 @@ function CrearRutinaContent() {
                       return (
                         <button
                           key={ex.id}
-                          onClick={() => agregarEjercicio(ex, isLocal)}
+                          onClick={() => {
+                            agregarEjercicio(ex, isLocal);
+                            setSearchQuery('');
+                          }}
                           className="w-full px-4 py-3 flex items-center gap-3 hover:bg-[#2f3638] text-left border-b border-[#2f3638] last:border-b-0"
                         >
                           <div className="relative w-12 h-12 flex-shrink-0 bg-[#242b2d] rounded overflow-hidden">
@@ -495,88 +535,88 @@ function CrearRutinaContent() {
                     })
                   )}
                 </div>
-                <button
-                  onClick={() => {
-                    setShowEjercicioDropdown(false);
-                    setSearchQuery('');
-                  }}
-                  className="w-full px-4 py-3 text-[#e2bfb0] text-sm font-['Lexend'] hover:bg-[#2f3638] border-t border-[#2f3638]"
-                >
-                  Cancelar
-                </button>
-              </div>
-            )}
-
-            <button
-              onClick={() => setShowEjercicioDropdown(!showEjercicioDropdown)}
-              className="w-full border-2 border-dashed border-[#5a4136] rounded-xl px-4 py-6 text-[#5a4136] font-['Lexend'] text-sm flex items-center justify-center gap-2 hover:border-[#ff6b00] hover:text-[#ff6b00] transition-colors"
-            >
-              <Search size={18} />
-              <span>Buscar Ejercicios</span>
-            </button>
+              )}
+            </div>
 
             <div className="space-y-3">
               {ejercicios.map((ex, index) => (
-                  <div key={ex.id} className="bg-[#1a2123] rounded-xl p-4 border-l-4 border-[#ff6b00]">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-bold text-[#dde4e6] font-['Lexend']">
-                            {ex.isLocal ? ex.ejercicioLocal?.nombre : ex.ejercicioDb?.nameEs}
-                          </h4>
-                          <span className={`text-xs px-2 py-1 rounded font-['Lexend'] ${
-                            ex.isLocal ? 'bg-[#4caf50]/20 text-[#4caf50]' : 'bg-[#ff6b00]/20 text-[#ff6b00]'
-                          }`}>
-                            {ex.isLocal ? 'Local' : 'API'}
-                          </span>
-                        </div>
-                        <p className="text-[#e2bfb0] text-sm font-['Lexend']">
-                          {ex.isLocal ? ex.ejercicioLocal?.grupoMuscular : ex.ejercicioDb?.primaryMusclesEs?.[0]}
-                        </p>
-                      </div>
-                      <button
-                        onClick={() => eliminarEjercicio(index)}
-                        className="text-red-500 hover:text-red-400 p-1"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                  <div key={ex.id} className="bg-[#1a2123] rounded-xl p-3 flex items-center gap-3 border-l-4 border-[#ff6b00]">
+                    <div className="w-14 h-14 rounded-lg overflow-hidden bg-[#242b2d] flex-shrink-0">
+                      {(() => {
+                        const isLocal = ex.isLocal;
+                        const imageUrl = isLocal
+                          ? `/ejercicios/${ex.ejercicio_id}.jpg`
+                          : (ex.ejercicioDb ? getExerciseImageUrl(ex.ejercicioDb) : '');
+                        const displayName = isLocal
+                          ? (ex.ejercicioLocal?.nombre || 'Sin nombre')
+                          : (ex.ejercicioDb?.nameEs || ex.ejercicioDb?.name || 'Sin nombre');
+                        return imageUrl ? (
+                          <img
+                            src={imageUrl}
+                            alt={displayName}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              e.currentTarget.style.display = 'none';
+                              e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                            }}
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center">
+                            <Dumbbell size={22} className="text-[#a98a7d]" />
+                          </div>
+                        );
+                      })()}
                     </div>
-
-                    <div className="grid grid-cols-3 gap-3">
-                      <div>
-                        <label className="text-xs text-[#ffb693] font-['Lexend']">Series</label>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-[#dde4e6] font-['Lexend'] truncate">
+                          {ex.isLocal ? (ex.ejercicioLocal?.nombre || 'Sin nombre') : (ex.ejercicioDb?.nameEs || ex.ejercicioDb?.name || 'Sin nombre')}
+                        </h4>
+                        <span className={`text-xs px-2 py-0.5 rounded font-['Lexend'] flex-shrink-0 ${
+                          ex.isLocal ? 'bg-[#4caf50]/20 text-[#4caf50]' : 'bg-[#ff6b00]/20 text-[#ff6b00]'
+                        }`}>
+                          {ex.isLocal ? 'Local' : 'API'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-[#e2bfb0] font-['Lexend'] truncate">
+                        {ex.isLocal ? ex.ejercicioLocal?.grupoMuscular : (ex.ejercicioDb?.primaryMusclesEs?.[0] || ex.ejercicioDb?.primaryMuscles?.[0])}
+                      </p>
+                      <div className="flex items-center gap-2 mt-1">
                         <input
                           type="number"
                           value={ex.series}
                           onChange={(e) => actualizarEjercicio(index, 'series', parseInt(e.target.value) || 0)}
                           min={1}
                           max={10}
-                          className="w-full bg-[#242b2d] border border-[#2f3638] rounded px-3 py-2 text-[#dde4e6] font-['Lexend'] text-center"
+                          className="w-12 bg-[#242b2d] border border-[#2f3638] rounded px-2 py-1 text-[#dde4e6] font-['Lexend'] text-center text-sm"
                         />
-                      </div>
-                      <div>
-                        <label className="text-xs text-[#ffb693] font-['Lexend']">Reps</label>
+                        <span className="text-[#a98a7d] text-xs">s</span>
                         <input
                           type="number"
                           value={ex.repeticiones}
                           onChange={(e) => actualizarEjercicio(index, 'repeticiones', parseInt(e.target.value) || 0)}
                           min={1}
                           max={100}
-                          className="w-full bg-[#242b2d] border border-[#2f3638] rounded px-3 py-2 text-[#dde4e6] font-['Lexend'] text-center"
+                          className="w-14 bg-[#242b2d] border border-[#2f3638] rounded px-2 py-1 text-[#dde4e6] font-['Lexend'] text-center text-sm"
                         />
-                      </div>
-                      <div>
-                        <label className="text-xs text-[#ffb693] font-['Lexend']">Peso(kg)</label>
+                        <span className="text-[#a98a7d] text-xs">r</span>
                         <input
                           type="number"
                           value={ex.peso}
                           onChange={(e) => actualizarEjercicio(index, 'peso', parseFloat(e.target.value) || 0)}
                           min={0}
                           step={0.5}
-                          className="w-full bg-[#242b2d] border border-[#2f3638] rounded px-3 py-2 text-[#dde4e6] font-['Lexend'] text-center"
+                          className="w-16 bg-[#242b2d] border border-[#2f3638] rounded px-2 py-1 text-[#dde4e6] font-['Lexend'] text-center text-sm"
                         />
+                        <span className="text-[#a98a7d] text-xs">kg</span>
                       </div>
                     </div>
+                    <button
+                      onClick={() => eliminarEjercicio(index)}
+                      className="text-red-500 hover:text-red-400 p-1 flex-shrink-0"
+                    >
+                      <Trash2 size={18} />
+                    </button>
                   </div>
                 ))}
               </div>
@@ -646,30 +686,15 @@ function CrearEjercicioModal({ onClose, onCreated }: CrearEjercicioModalProps) {
     setError('');
 
     try {
-      let imagenPath = '';
-
-      if (imagen) {
-        const formData = new FormData();
-        formData.append('image', imagen);
-        const uploadRes = await fetch('/api/ejercicios/upload', {
-          method: 'POST',
-          body: formData,
-        });
-        if (uploadRes.ok) {
-          const uploadData = await uploadRes.json();
-          imagenPath = uploadData.path;
-        }
-      }
-
+      const gruposMuscularesJson = JSON.stringify(gruposSecundarios);
       const ejercicioData = {
         nombre,
         grupoMuscular,
-        gruposMusculares: gruposSecundarios,
+        gruposMusculares: gruposMuscularesJson,
         equipo: equipo || null,
         nivel,
         instrucciones,
         categoria: categoria || null,
-        imagen: imagenPath || null,
       };
 
       const res = await fetch('/api/ejercicios', {
@@ -681,6 +706,17 @@ function CrearEjercicioModal({ onClose, onCreated }: CrearEjercicioModalProps) {
       if (!res.ok) throw new Error('Error creating ejercicio');
 
       const ejercicio = await res.json();
+
+      if (imagen) {
+        const formData = new FormData();
+        formData.append('image', imagen);
+        formData.append('ejercicioId', ejercicio.id);
+        await fetch('/api/ejercicios/upload', {
+          method: 'POST',
+          body: formData,
+        });
+      }
+
       onCreated(ejercicio);
     } catch (err) {
       setError('Error al crear el ejercicio');

@@ -5,87 +5,25 @@ import Link from 'next/link';
 import Header from '../components/Header';
 import BottomNav from '../components/BottomNav';
 import { Dumbbell, Calendar, ChevronRight } from 'lucide-react';
+import { useAuth } from '../components/AuthProvider';
 
 const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-interface RegistroMock {
+interface RegistroDB {
   id: string;
-  rutinaNombre: string;
+  rutinaVersionId: string | null;
+  alumnoId: string;
   fecha: string;
-  duracionMinutos: number;
+  estado: string;
+  horaInicio: string | null;
+  horaFin: string | null;
+  duracionMinutos: number | null;
+  observaciones: string | null;
+  rutinaNombre: string;
   seriesCompletadas: number;
   totalSeries: number;
   volumenTotal: number;
-  detalles: { numeroSerie: number; peso: number; repeticiones: number; completado: boolean }[];
 }
-
-const mockRegistros: RegistroMock[] = [
-  {
-    id: '1',
-    rutinaNombre: 'Pierna - Cuádriceps',
-    fecha: '2026-05-04T18:30:00',
-    duracionMinutos: 65,
-    seriesCompletadas: 12,
-    totalSeries: 12,
-    volumenTotal: 24500,
-    detalles: [
-      { numeroSerie: 1, peso: 80, repeticiones: 12, completado: true },
-      { numeroSerie: 2, peso: 85, repeticiones: 10, completado: true },
-      { numeroSerie: 3, peso: 90, repeticiones: 8, completado: true },
-      { numeroSerie: 1, peso: 100, repeticiones: 15, completado: true },
-      { numeroSerie: 2, peso: 100, repeticiones: 12, completado: true },
-      { numeroSerie: 3, peso: 100, repeticiones: 10, completado: true },
-    ],
-  },
-  {
-    id: '2',
-    rutinaNombre: 'Empuje / Pecho',
-    fecha: '2026-05-02T17:00:00',
-    duracionMinutos: 55,
-    seriesCompletadas: 9,
-    totalSeries: 9,
-    volumenTotal: 18200,
-    detalles: [
-      { numeroSerie: 1, peso: 60, repeticiones: 12, completado: true },
-      { numeroSerie: 2, peso: 65, repeticiones: 10, completado: true },
-      { numeroSerie: 3, peso: 70, repeticiones: 8, completado: true },
-      { numeroSerie: 1, peso: 30, repeticiones: 15, completado: true },
-      { numeroSerie: 2, peso: 30, repeticiones: 12, completado: true },
-      { numeroSerie: 3, peso: 30, repeticiones: 10, completado: true },
-    ],
-  },
-  {
-    id: '3',
-    rutinaNombre: 'Tracción & Espalda',
-    fecha: '2026-04-29T19:00:00',
-    duracionMinutos: 50,
-    seriesCompletadas: 6,
-    totalSeries: 9,
-    volumenTotal: 8400,
-    detalles: [
-      { numeroSerie: 1, peso: 50, repeticiones: 12, completado: true },
-      { numeroSerie: 2, peso: 50, repeticiones: 10, completado: true },
-      { numeroSerie: 3, peso: 55, repeticiones: 8, completado: true },
-      { numeroSerie: 1, peso: 40, repeticiones: 12, completado: false },
-      { numeroSerie: 2, peso: 40, repeticiones: 10, completado: false },
-      { numeroSerie: 3, peso: 40, repeticiones: 8, completado: false },
-    ],
-  },
-  {
-    id: '4',
-    rutinaNombre: 'Pierna - Glúteos',
-    fecha: '2026-04-27T08:30:00',
-    duracionMinutos: 70,
-    seriesCompletadas: 12,
-    totalSeries: 12,
-    volumenTotal: 31200,
-    detalles: [
-      { numeroSerie: 1, peso: 100, repeticiones: 12, completado: true },
-      { numeroSerie: 2, peso: 110, repeticiones: 10, completado: true },
-      { numeroSerie: 3, peso: 120, repeticiones: 8, completado: true },
-    ],
-  },
-];
 
 function formatearFecha(fechaStr: string): { dia: string; mes: string; anio: string; hora: string } {
   const fecha = new Date(fechaStr);
@@ -97,14 +35,30 @@ function formatearFecha(fechaStr: string): { dia: string; mes: string; anio: str
 }
 
 export default function HistorialPage() {
+  const { user, isLoading: authLoading } = useAuth();
+  const [registros, setRegistros] = useState<RegistroDB[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
+    if (authLoading || !user) return;
 
-  if (loading) {
+    const fetchHistorial = async () => {
+      try {
+        const res = await fetch(`/api/historial?userId=${user.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRegistros(data);
+        }
+      } catch (error) {
+        console.error('Error fetching historial:', error);
+      }
+      setLoading(false);
+    };
+
+    fetchHistorial();
+  }, [user, authLoading]);
+
+  if (authLoading || loading) {
     return (
       <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
         <Header />
@@ -126,59 +80,67 @@ export default function HistorialPage() {
           <h1 className="text-2xl font-bold text-[#dde4e6] leading-none font-['Lexend']">Historial</h1>
         </section>
 
-        <div className="flex flex-col gap-4">
-          {mockRegistros.map((registro) => {
-            const fecha = formatearFecha(registro.fecha);
-            const volumenDisplay = registro.volumenTotal >= 1000
-              ? `${(registro.volumenTotal / 1000).toFixed(1)}k`
-              : String(registro.volumenTotal);
+        {registros.length === 0 ? (
+          <div className="text-center py-20">
+            <Dumbbell size={48} className="mx-auto text-[#5a4136] mb-4" />
+            <p className="text-[#e2bfb0] font-['Lexend]">No tienes entrenamientos registrados</p>
+            <p className="text-[#5a4136] text-sm mt-2 font-['Lexend]">¡Completa tu primer entrenamiento!</p>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-4">
+            {registros.map((registro) => {
+              const fecha = formatearFecha(registro.fecha);
+              const volumenDisplay = registro.volumenTotal >= 1000
+                ? `${(registro.volumenTotal / 1000).toFixed(1)}k`
+                : String(registro.volumenTotal);
 
-            return (
-              <Link
-                key={registro.id}
-                href={`/historial/${registro.id}`}
-                className="block bg-[#1a2123] rounded-xl overflow-hidden border-l-4 border-[#ff6b00] active:scale-[0.98] transition-transform duration-150"
-              >
-                <div className="p-4">
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <p className="font-bold text-[#dde4e6] font-['Lexend']">{registro.rutinaNombre}</p>
-                      <p className="text-xs text-[#e2bfb0] font-['Lexend']">
-                        {fecha.hora} • {fecha.dia} {fecha.mes} {fecha.anio}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className={`flex items-center gap-1 px-2 py-1 rounded ${
-                        registro.seriesCompletadas === registro.totalSeries
-                          ? 'bg-[#4caf50]/20'
-                          : 'bg-[#ff6b00]/10'
-                      }`}>
-                        <Dumbbell size={12} className={registro.seriesCompletadas === registro.totalSeries ? 'text-[#4caf50]' : 'text-[#ff6b00]'} />
-                        <span className={`text-xs font-bold font-['Lexend'] ${registro.seriesCompletadas === registro.totalSeries ? 'text-[#4caf50]' : 'text-[#ff6b00]'}`}>
-                          {registro.seriesCompletadas}/{registro.totalSeries}
-                        </span>
+              return (
+                <Link
+                  key={registro.id}
+                  href={`/historial/${registro.id}`}
+                  className="block bg-[#1a2123] rounded-xl overflow-hidden border-l-4 border-[#ff6b00] active:scale-[0.98] transition-transform duration-150"
+                >
+                  <div className="p-4">
+                    <div className="flex items-start justify-between mb-3">
+                      <div>
+                        <p className="font-bold text-[#dde4e6] font-['Lexend']">{registro.rutinaNombre}</p>
+                        <p className="text-xs text-[#e2bfb0] font-['Lexend']">
+                          {fecha.hora} • {fecha.dia} {fecha.mes} {fecha.anio}
+                        </p>
                       </div>
-                      <ChevronRight size={18} className="text-[#a98a7d]" />
+                      <div className="flex items-center gap-3">
+                        <div className={`flex items-center gap-1 px-2 py-1 rounded ${
+                          registro.seriesCompletadas === registro.totalSeries
+                            ? 'bg-[#4caf50]/20'
+                            : 'bg-[#ff6b00]/10'
+                        }`}>
+                          <Dumbbell size={12} className={registro.seriesCompletadas === registro.totalSeries ? 'text-[#4caf50]' : 'text-[#ff6b00]'} />
+                          <span className={`text-xs font-bold font-['Lexend'] ${registro.seriesCompletadas === registro.totalSeries ? 'text-[#4caf50]' : 'text-[#ff6b00]'}`}>
+                            {registro.seriesCompletadas}/{registro.totalSeries}
+                          </span>
+                        </div>
+                        <ChevronRight size={18} className="text-[#a98a7d]" />
+                      </div>
                     </div>
-                  </div>
 
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="bg-[#242b2d] rounded-lg p-3">
-                      <p className="text-[10px] text-[#a98a7d] uppercase tracking-wider font-['Lexend'] mb-1">Duración</p>
-                      <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">{registro.duracionMinutos}'</p>
-                    </div>
-                    <div className="bg-[#242b2d] rounded-lg p-3">
-                      <p className="text-[10px] text-[#a98a7d] uppercase tracking-wider font-['Lexend'] mb-1">Volumen</p>
-                      <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">
-                        {volumenDisplay}<span className="text-xs text-[#a98a7d] ml-1">kg</span>
-                      </p>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="bg-[#242b2d] rounded-lg p-3">
+                        <p className="text-[10px] text-[#a98a7d] uppercase tracking-wider font-['Lexend'] mb-1">Duración</p>
+                        <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">{registro.duracionMinutos || 0}'</p>
+                      </div>
+                      <div className="bg-[#242b2d] rounded-lg p-3">
+                        <p className="text-[10px] text-[#a98a7d] uppercase tracking-wider font-['Lexend'] mb-1">Volumen</p>
+                        <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">
+                          {volumenDisplay}<span className="text-xs text-[#a98a7d] ml-1">kg</span>
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </Link>
-            );
-          })}
-        </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </main>
 
       <BottomNav />

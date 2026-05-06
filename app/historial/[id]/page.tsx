@@ -1,85 +1,68 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import Header from '../../components/Header';
 import BottomNav from '../../components/BottomNav';
-import { ChevronRight, Dumbbell, Check, X } from 'lucide-react';
+import { ChevronRight, Dumbbell, Check, X, Loader2 } from 'lucide-react';
 
 const meses = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
-interface DetalleMock {
+interface DetalleEjercicio {
   id: string;
   ejercicioId: string;
   ejercicioNombre: string;
-  series: { numeroSerie: number; peso: number; repeticiones: number; completado: boolean }[];
+  imagen: string;
+  isLocal: boolean;
+  series: {
+    numeroSerie: number;
+    peso: number;
+    repeticiones: number;
+    completado: boolean;
+  }[];
 }
 
-interface RegistroDetalleMock {
+interface RegistroDetalle {
   id: string;
-  rutinaNombre: string;
+  rutinaVersionId: string | null;
+  alumnoId: string;
   fecha: string;
-  hora: string;
-  duracionMinutos: number;
   estado: string;
+  horaInicio: string | null;
+  horaFin: string | null;
+  duracionMinutos: number | null;
+  observaciones: string | null;
+  rutinaNombre: string;
   volumenTotal: number;
-  detalles: DetalleMock[];
+  seriesCompletadas: number;
+  totalSeries: number;
+  detalles: DetalleEjercicio[];
 }
-
-const mockDetalle: RegistroDetalleMock = {
-  id: '1',
-  rutinaNombre: 'Pierna - Cuádriceps',
-  fecha: '04 May 2026',
-  hora: '18:30',
-  duracionMinutos: 65,
-  estado: 'completado',
-  volumenTotal: 24500,
-  detalles: [
-    {
-      id: 'ej1',
-      ejercicioId: 'ej1',
-      ejercicioNombre: 'Sentadilla con Barra',
-      series: [
-        { numeroSerie: 1, peso: 80, repeticiones: 12, completado: true },
-        { numeroSerie: 2, peso: 85, repeticiones: 10, completado: true },
-        { numeroSerie: 3, peso: 90, repeticiones: 8, completado: true },
-      ],
-    },
-    {
-      id: 'ej2',
-      ejercicioId: 'ej2',
-      ejercicioNombre: 'Prensa de Piernas 45º',
-      series: [
-        { numeroSerie: 1, peso: 100, repeticiones: 15, completado: true },
-        { numeroSerie: 2, peso: 100, repeticiones: 12, completado: true },
-        { numeroSerie: 3, peso: 100, repeticiones: 10, completado: true },
-      ],
-    },
-    {
-      id: 'ej3',
-      ejercicioId: 'ej3',
-      ejercicioNombre: 'Extensión de Cuádriceps',
-      series: [
-        { numeroSerie: 1, peso: 45, repeticiones: 20, completado: true },
-        { numeroSerie: 2, peso: 45, repeticiones: 18, completado: true },
-        { numeroSerie: 3, peso: 50, repeticiones: 15, completado: true },
-      ],
-    },
-    {
-      id: 'ej4',
-      ejercicioId: 'ej4',
-      ejercicioNombre: 'Peso Muerto Rumano',
-      series: [
-        { numeroSerie: 1, peso: 60, repeticiones: 12, completado: true },
-        { numeroSerie: 2, peso: 60, repeticiones: 10, completado: true },
-        { numeroSerie: 3, peso: 65, repeticiones: 8, completado: false },
-      ],
-    },
-  ],
-};
 
 export default function HistorialDetallePage() {
-  const [loading] = useState(false);
+  const params = useParams();
+  const [registro, setRegistro] = useState<RegistroDetalle | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!params.id) return;
+
+    const fetchDetalle = async () => {
+      try {
+        const res = await fetch(`/api/historial/${params.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setRegistro(data);
+        }
+      } catch (error) {
+        console.error('Error fetching detalle:', error);
+      }
+      setLoading(false);
+    };
+
+    fetchDetalle();
+  }, [params.id]);
 
   if (loading) {
     return (
@@ -93,12 +76,25 @@ export default function HistorialDetallePage() {
     );
   }
 
-  const registro = mockDetalle;
+  if (!registro) {
+    return (
+      <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
+        <Header />
+        <main className="pt-20 pb-32 px-5 max-w-md mx-auto text-center">
+          <p className="text-[#e2bfb0]">Registro no encontrado</p>
+        </main>
+        <BottomNav />
+      </div>
+    );
+  }
+
   const volumenDisplay = registro.volumenTotal >= 1000
     ? `${(registro.volumenTotal / 1000).toFixed(1)}k`
     : String(registro.volumenTotal);
-  const seriesCompletadas = registro.detalles.reduce((acc, ej) => acc + ej.series.filter(s => s.completado).length, 0);
-  const totalSeries = registro.detalles.reduce((acc, ej) => acc + ej.series.length, 0);
+
+  const fecha = new Date(registro.fecha);
+  const fechaFormateada = `${fecha.getDate()} ${meses[fecha.getMonth()]} ${fecha.getFullYear()}`;
+  const horaFormateada = fecha.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
 
   return (
     <div className="min-h-screen bg-[#0e1416] text-[#dde4e6]">
@@ -115,8 +111,8 @@ export default function HistorialDetallePage() {
         <div className="bg-[#1a2123] rounded-xl p-4 mb-6 border border-[#ff6b00]/20">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <p className="text-xs text-[#a98a7d] font-['Lexend']">{registro.fecha}</p>
-              <p className="text-sm text-[#e2bfb0] font-['Lexend']">{registro.hora}</p>
+              <p className="text-xs text-[#a98a7d] font-['Lexend']">{fechaFormateada}</p>
+              <p className="text-sm text-[#e2bfb0] font-['Lexend']">{horaFormateada}</p>
             </div>
             <div className="text-right">
               <p className="text-xs text-[#a98a7d] font-['Lexend']">Estado</p>
@@ -127,11 +123,11 @@ export default function HistorialDetallePage() {
           <div className="grid grid-cols-3 gap-3">
             <div className="bg-[#242b2d] rounded-lg p-3 text-center">
               <p className="text-[10px] text-[#a98a7d] uppercase tracking-wider font-['Lexend'] mb-1">Duración</p>
-              <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">{registro.duracionMinutos}<span className="text-xs text-[#a98a7d] ml-1">min</span></p>
+              <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">{registro.duracionMinutos || 0}<span className="text-xs text-[#a98a7d] ml-1">min</span></p>
             </div>
             <div className="bg-[#242b2d] rounded-lg p-3 text-center">
               <p className="text-[10px] text-[#a98a7d] uppercase tracking-wider font-['Lexend'] mb-1">Series</p>
-              <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">{seriesCompletadas}<span className="text-xs text-[#a98a7d] ml-1">/ {totalSeries}</span></p>
+              <p className="text-lg font-bold text-[#dde4e6] font-['Lexend']">{registro.seriesCompletadas}<span className="text-xs text-[#a98a7d] ml-1">/ {registro.totalSeries}</span></p>
             </div>
             <div className="bg-[#242b2d] rounded-lg p-3 text-center">
               <p className="text-[10px] text-[#a98a7d] uppercase tracking-wider font-['Lexend'] mb-1">Volumen</p>
@@ -149,8 +145,19 @@ export default function HistorialDetallePage() {
               <div key={ejercicio.id} className={`bg-[#1a2123] rounded-xl overflow-hidden border-l-4 ${allCompleted ? 'border-[#4caf50]' : 'border-[#ff6b00]'}`}>
                 <div className="flex items-center justify-between p-4 border-b border-[#2f3638]">
                   <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-[#242b2d] flex items-center justify-center">
-                      <Dumbbell size={20} className="text-[#a98a7d]" />
+                    <div className="w-12 h-12 rounded-lg bg-[#242b2d] overflow-hidden flex items-center justify-center">
+                      {ejercicio.imagen ? (
+                        <img
+                          src={ejercicio.imagen}
+                          alt={ejercicio.ejercicioNombre}
+                          className="w-full h-full object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                            e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <Dumbbell size={20} className={`text-[#a98a7d] ${ejercicio.imagen ? 'hidden' : ''}`} />
                     </div>
                     <p className="font-bold text-[#dde4e6] font-['Lexend']">{ejercicio.ejercicioNombre}</p>
                   </div>
@@ -166,8 +173,8 @@ export default function HistorialDetallePage() {
                 </div>
 
                 <div className="divide divide-[#2f3638]">
-                  {ejercicio.series.map((set) => (
-                    <div key={set.numeroSerie} className={`flex items-center gap-3 px-4 py-3 ${set.completado ? 'bg-[#0e1416]/30' : ''}`}>
+                  {ejercicio.series.map((set, idx) => (
+                    <div key={idx} className={`flex items-center gap-3 px-4 py-3 ${set.completado ? 'bg-[#0e1416]/30' : ''}`}>
                       <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-['Lexend'] font-bold ${set.completado ? 'bg-[#ff6b00] text-[#351000]' : 'bg-[#242b2d] text-[#a98a7d]'}`}>
                         {set.numeroSerie}
                       </div>

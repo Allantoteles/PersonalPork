@@ -17,9 +17,124 @@ interface RutinaVersionRow {
   diaSemana: string;
 }
 
+interface ExerciseImage {
+  id: string;
+  imagen: string;
+  isLocal: boolean;
+}
+
+async function fetchRoutineImages(rutinaVersionId: string): Promise<ExerciseImage[]> {
+  try {
+    const ejercicios = await query<{ ejercicioId: string }>(
+      `SELECT DISTINCT ejercicioId FROM RutinaEjercicioVersion WHERE rutinaVersionId = ? LIMIT 4`,
+      [rutinaVersionId]
+    );
+
+    const images: ExerciseImage[] = [];
+
+    for (const ej of ejercicios) {
+      const isLocal = await checkIsLocalExercise(ej.ejercicioId);
+
+      if (isLocal) {
+        images.push({
+          id: ej.ejercicioId,
+          imagen: `/ejercicios/${ej.ejercicioId}.jpg`,
+          isLocal: true,
+        });
+      } else {
+        const apiImages = await getApiExerciseImage(ej.ejercicioId);
+        if (apiImages) {
+          images.push({
+            id: ej.ejercicioId,
+            imagen: apiImages,
+            isLocal: false,
+          });
+        }
+      }
+    }
+
+    return images;
+  } catch (error) {
+    console.error('Error fetching routine images:', error);
+    return [];
+  }
+}
+
+async function checkIsLocalExercise(exerciseId: string): Promise<boolean> {
+  try {
+    const result = await query<{ id: string }>(
+      `SELECT id FROM Ejercicio WHERE id = ?`,
+      [exerciseId]
+    );
+    return result.length > 0;
+  } catch {
+    return false;
+  }
+}
+
+async function getApiExerciseImage(exerciseId: string): Promise<string | null> {
+  try {
+    const exercises = await fetch(
+      'https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/dist/exercises.json'
+    );
+    if (!exercises.ok) return null;
+
+    const data = await exercises.json();
+    const exercise = data.find((ex: { id: string }) => ex.id === exerciseId);
+
+    if (exercise?.images?.[0]) {
+      return `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${exercise.images[0]}`;
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+function ExerciseMosaic({ images }: { images: ExerciseImage[] }) {
+  if (images.length === 0) {
+    return (
+      <div className="w-full h-full flex items-center justify-center bg-[#2f3638]">
+        <Dumbbell className="text-[#a98a7d]" size={32} />
+      </div>
+    );
+  }
+
+  const displayImages = images.slice(0, 4);
+  const gridClass = displayImages.length === 1
+    ? 'grid-cols-1 grid-rows-1'
+    : displayImages.length === 2
+      ? 'grid-cols-2 grid-rows-1'
+      : displayImages.length === 3
+        ? 'grid-cols-2 grid-rows-2 [&>*:last-child]:col-span-2'
+        : 'grid-cols-2 grid-rows-2';
+
+  return (
+    <div className={`w-full h-full grid ${gridClass} gap-0.5`}>
+      {displayImages.map((img, index) => (
+        <div
+          key={`${img.id}-${index}`}
+          className="bg-[#2f3638] overflow-hidden"
+        >
+          <img
+            src={img.imagen}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none';
+              e.currentTarget.parentElement!.classList.add('flex', 'items-center', 'justify-center');
+            }}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function AthleteTrainPage() {
   const { user, isLoading: authLoading } = useAuth();
   const [rutinas, setRutinas] = useState<RutinaVersionRow[]>([]);
+  const [rutinaImages, setRutinaImages] = useState<Record<string, ExerciseImage[]>>({});
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +149,12 @@ export default function AthleteTrainPage() {
         [user.id]
       );
       setRutinas(data);
+
+      const imagesMap: Record<string, ExerciseImage[]> = {};
+      for (const rutina of data) {
+        imagesMap[rutina.id] = await fetchRoutineImages(rutina.id);
+      }
+      setRutinaImages(imagesMap);
       setLoading(false);
     };
 
@@ -78,8 +199,8 @@ export default function AthleteTrainPage() {
                     href={`/entrenar/${routine.id}`}
                     className="bg-[#242b2d] rounded-lg overflow-hidden border-l-4 border-[#ff6b00] flex active:scale-[0.98] transition-transform duration-150"
                   >
-                    <div className="w-24 h-24 shrink-0 bg-[#2f3638] relative overflow-hidden flex items-center justify-center">
-                      <Dumbbell className="text-[#a98a7d]" size={32} />
+                    <div className="w-24 h-24 shrink-0 overflow-hidden">
+                      <ExerciseMosaic images={rutinaImages[routine.id] || []} />
                     </div>
                     <div className="p-4 flex flex-col justify-center flex-1">
                       <h3 className="font-bold text-[#dde4e6] mb-1 font-['Lexend']">{routine.nombre}</h3>

@@ -1,5 +1,3 @@
-'use client';
-
 import { NextRequest, NextResponse } from 'next/server';
 import { query, execute } from '../../../lib/turso';
 

@@ -207,9 +207,18 @@ export async function searchExercises(query: string): Promise<ExerciseFromDB[]> 
     .slice(0, 20);
 }
 
+export async function getExerciseById(id: string): Promise<ExerciseFromDB | null> {
+  const exercises = await fetchExercises();
+  return exercises.find(ex => ex.id === id) || null;
+}
+
 export function getExerciseImageUrl(exercise: ExerciseFromDB): string {
-  if (!exercise.images || exercise.images.length === 0) {
-    return '';
+  if (exercise.images && exercise.images.length > 0) {
+    return `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${exercise.images[0]}`;
   }
-  return `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${exercise.images[0]}`;
+  if (exercise.name) {
+    const normalizedName = exercise.name.replace(/\s+/g, '_');
+    return `https://raw.githubusercontent.com/yuhonas/free-exercise-db/main/exercises/${normalizedName}/0.jpg`;
+  }
+  return '';
 }

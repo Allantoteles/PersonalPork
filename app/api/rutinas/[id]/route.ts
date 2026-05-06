@@ -38,7 +38,9 @@ export async function PUT(req: NextRequest, { params }: Params) {
     );
 
     const [alumnoAndEntrenador] = await query<{ alumnoId: string; entrenadorId: string }>(
-      `SELECT rv.alumnoId, rv.entrenadorId FROM RutinaVersion rv WHERE rv.id = ?`,
+      `SELECT r.alumnoId, r.entrenadorId FROM RutinaVersion rv
+       INNER JOIN Rutina r ON rv.rutinaOriginalId = r.id
+       WHERE rv.id = ?`,
       [id]
     );
 

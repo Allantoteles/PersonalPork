@@ -3,6 +3,7 @@ import { query } from '@/lib/turso';
 
 export async function GET(req: NextRequest) {
   const trainerId = req.nextUrl.searchParams.get('trainerId');
+  const search = req.nextUrl.searchParams.get('search');
 
   if (!trainerId) {
     return NextResponse.json({ error: 'trainerId required' }, { status: 400 });
@@ -14,10 +15,17 @@ export async function GET(req: NextRequest) {
 
     const rolAtletaId = roles[0].id;
 
-    const alumnos = await query(
-      `SELECT * FROM Usuario WHERE rolId = ? AND entrenadorId = ? ORDER BY nombre`,
-      [rolAtletaId, trainerId]
-    );
+    let sql = `SELECT * FROM Usuario WHERE rolId = ? AND entrenadorId = ?`;
+    const params: unknown[] = [rolAtletaId, trainerId];
+
+    if (search) {
+      sql += ` AND nombre LIKE ?`;
+      params.push(`%${search}%`);
+    }
+
+    sql += ` ORDER BY nombre LIMIT 20`;
+
+    const alumnos = await query(sql, params);
 
     return NextResponse.json(alumnos);
   } catch (error) {

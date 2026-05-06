@@ -6,6 +6,7 @@ export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
     const file = formData.get('image') as File | null;
+    const ejercicioId = formData.get('ejercicioId') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'No image provided' }, { status: 400 });
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const maxSize = 5 * 1024 * 1024; // 5MB
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
       return NextResponse.json(
         { error: 'File too large. Max 5MB allowed' },
@@ -28,23 +29,15 @@ export async function POST(request: NextRequest) {
     }
 
     const buffer = await file.arrayBuffer();
-    const bufferBase64 = Buffer.from(buffer).toString('base64');
-
-    const nameWithoutExt = file.name.replace(/\.[^/.]+$/, '');
-    const safeName = nameWithoutExt.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-    const uuid = crypto.randomUUID();
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
-    const fileName = `${safeName}-${uuid}.${ext}`;
+    const fileName = ejercicioId ? `${ejercicioId}.jpg` : `${crypto.randomUUID()}.jpg`;
 
     const uploadDir = path.join(process.cwd(), 'public', 'ejercicios');
     await mkdir(uploadDir, { recursive: true });
 
     const filePath = path.join(uploadDir, fileName);
-    await writeFile(filePath, Buffer.from(bufferBase64, 'base64'));
+    await writeFile(filePath, Buffer.from(buffer));
 
-    const imagePath = `/ejercicios/${fileName}`;
-
-    return NextResponse.json({ path: imagePath, fileName }, { status: 201 });
+    return NextResponse.json({ path: `/ejercicios/${fileName}` }, { status: 201 });
   } catch (error) {
     console.error('Error uploading image:', error);
     return NextResponse.json({ error: 'Error uploading image' }, { status: 500 });
